@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RELEASE network security policy.
+
+  cleartextTrafficPermitted stays on globally and cannot be scoped to a
+  domain-config: this is a generic Xtream/M3U client, customers add
+  arbitrary hosts at runtime, and a large share of real-world IPTV panels
+  only serve plain HTTP. Every client in this category (TiviMate, Perfect
+  Player, OTT Navigator, ...) carries the same constraint for the same
+  reason. Prefer https:// panels where your provider supports them — the
+  app already respects an explicit https:// scheme if you type one.
+
+  Trust anchors are intentionally SYSTEM ONLY here. Trusting user-installed
+  CAs on a release build means anyone who can get a certificate profile
+  onto the device (a fake "install this to fix buffering" prompt, physical
+  access, a compromised MDM) can MITM every connection, including the
+  https:// ones. debug builds use a separate config
+  (src/debug/res/xml/network_security_config.xml) that also trusts user
+  CAs, for proxying your own traffic during development.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

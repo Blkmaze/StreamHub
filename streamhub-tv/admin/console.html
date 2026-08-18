@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StreamHub TV — Support Console</title>
+<style>
+  :root{
+    --bg:#060910; --panel:#0d1220; --panel2:#121a2c; --elev:#18223a;
+    --line:rgba(255,255,255,.10); --accent:#40d6ff; --accent-dim:#1e7fa8;
+    --text:#f2f6ff; --muted:#9aa8c4; --dim:#67748e;
+    --good:#4ade80; --warn:#fbbf24; --bad:#f87171;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  input,textarea,button,select{font:inherit;color:inherit}
+  input,textarea,select{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+       padding:9px 11px;outline:none;width:100%}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+  button{background:var(--elev);border:1px solid var(--line);border-radius:9px;padding:9px 16px;
+         cursor:pointer;font-weight:600;white-space:nowrap;width:auto}
+  button:hover:not(:disabled){border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--accent);color:#03121a;border-color:transparent}
+  button.primary:hover:not(:disabled){filter:brightness(1.1)}
+  button.ghost{background:transparent}
+  .muted{color:var(--muted)} .dim{color:var(--dim)}
+
+  header{display:flex;gap:12px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,#0d1220,#080c16);flex-shrink:0}
+  header h1{font-size:16px;margin:0;font-weight:700}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex-shrink:0}
+  .dot.on{background:var(--good);box-shadow:0 0 10px var(--good)}
+  .grow{flex:1}
+
+  .setup{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;
+         align-items:flex-end;background:#0a0f1c;flex-shrink:0}
+  .setup .field{flex:1;min-width:220px}
+  .setup label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px;letter-spacing:.08em}
+
+  main{flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0}
+
+  /* directory */
+  .dir{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+  .dir .tools{padding:12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{padding:4px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);
+        font-size:12px;cursor:pointer;user-select:none}
+  .chip.on{background:var(--accent-dim);border-color:transparent;color:#eaf9ff}
+  .dir .scroll{overflow-y:auto;flex:1}
+  .acct{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer}
+  .acct:hover{background:var(--panel2)}
+  .acct.active{background:#14283f;box-shadow:inset 3px 0 0 var(--accent)}
+  .acct .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .acct .name{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acct .ref{font-size:11px;color:var(--dim);font-family:ui-monospace,monospace;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acct .last{color:var(--muted);font-size:12.5px;margin-top:3px;
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{background:var(--accent);color:#03121a;border-radius:10px;padding:0 7px;font-size:11px;font-weight:700}
+  .pill{background:rgba(255,255,255,.09);border-radius:10px;padding:1px 7px;font-size:11px;color:var(--muted)}
+
+  /* thread */
+  .thread{display:flex;flex-direction:column;min-height:0}
+  .bar{padding:11px 20px;border-bottom:1px solid var(--line);background:#0a0f1c;display:flex;
+       gap:14px;align-items:center;flex-wrap:wrap}
+  .bar .who{font-size:15px;font-weight:700}
+  .devices{display:flex;gap:6px;flex-wrap:wrap}
+  .dev{font-size:11px;padding:2px 8px;border-radius:8px;background:var(--panel2);
+       border:1px solid var(--line);font-family:ui-monospace,monospace;cursor:pointer}
+  .dev.on{border-color:var(--accent);color:var(--accent)}
+  .dev .st{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--dim);margin-right:5px}
+  .dev .st.live{background:var(--good)}
+
+  .msgs{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px}
+  .bubble{max-width:min(640px,72%);padding:10px 14px;border-radius:14px;white-space:pre-wrap;word-break:break-word}
+  .bubble.in{background:var(--elev);border-top-left-radius:4px;align-self:flex-start}
+  .bubble.out{background:var(--accent-dim);border-top-right-radius:4px;align-self:flex-end}
+  .bubble .meta{font-size:11px;color:rgba(255,255,255,.6);margin-top:5px;display:flex;gap:8px}
+  .sys{align-self:center;font-size:12px;color:var(--dim);background:var(--panel2);
+       border:1px solid var(--line);border-radius:20px;padding:4px 14px}
+
+  .composer{border-top:1px solid var(--line);padding:12px 20px 16px;background:#0a0f1c;flex-shrink:0}
+  .composer .row{display:flex;gap:10px;align-items:center;margin-bottom:9px;flex-wrap:wrap}
+  .composer textarea{resize:none;height:54px}
+  .composer .send-row{display:flex;gap:10px;align-items:flex-end}
+  .to{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+
+  .empty{margin:auto;color:var(--dim);text-align:center;padding:40px;max-width:460px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--elev);
+         border:1px solid var(--line);padding:10px 18px;border-radius:10px;font-size:14px;
+         display:none;z-index:50}
+  .toast.bad{border-color:var(--bad);color:var(--bad)}
+  .toast.good{border-color:var(--good);color:var(--good)}
+
+  dialog{border:1px solid var(--line);background:var(--panel);color:var(--text);
+         border-radius:14px;padding:0;width:min(560px,92vw)}
+  dialog::backdrop{background:rgba(0,0,0,.65)}
+  dialog .head{padding:16px 20px;border-bottom:1px solid var(--line);font-weight:700}
+  dialog .body{padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+  dialog .foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+  label.f{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;letter-spacing:.06em}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>StreamHub TV — Support Console</h1>
+  <span class="grow"></span>
+  <span class="muted" id="status" style="font-size:13px">Not connected</span>
+  <button class="ghost" onclick="openBroadcast()">Send announcement</button>
+  <button class="ghost" onclick="refreshAll(true)">Refresh</button>
+</header>
+
+<div class="setup" id="setup">
+  <div class="field">
+    <label>SUPABASE PROJECT URL</label>
+    <input id="url" placeholder="https://yourproject.supabase.co" spellcheck="false">
+  </div>
+  <div class="field">
+    <label>SERVICE_ROLE KEY — stays in this browser tab only</label>
+    <input id="key" type="password" placeholder="eyJhbGciOi…" spellcheck="false">
+  </div>
+  <button class="primary" onclick="connect()">Connect</button>
+</div>
+
+<main>
+  <!-- Directory -->
+  <div class="dir">
+    <div class="tools">
+      <input id="search" placeholder="Search name, account, device ID or tag…" oninput="renderDir()">
+      <div class="chips" id="filters">
+        <span class="chip on" data-f="all"   onclick="setFilter('all')">All</span>
+        <span class="chip"    data-f="unread"onclick="setFilter('unread')">Unread</span>
+        <span class="chip"    data-f="live"  onclick="setFilter('live')">Active 24h</span>
+        <span class="chip"    data-f="quiet" onclick="setFilter('quiet')">Never wrote</span>
+      </div>
+      <div class="chips" id="tagchips"></div>
+    </div>
+    <div class="scroll" id="dirList"></div>
+  </div>
+
+  <!-- Thread -->
+  <div class="thread">
+    <div class="bar">
+      <div>
+        <div class="who" id="who">No account selected</div>
+        <div class="ref dim" id="whoRef" style="font-family:ui-monospace,monospace;font-size:11px"></div>
+      </div>
+      <span class="grow"></span>
+      <div class="devices" id="devices"></div>
+      <button class="ghost" id="btnTags" onclick="openTags()" disabled>Tags &amp; notes</button>
+    </div>
+
+    <div class="msgs" id="msgs">
+      <div class="empty">
+        Connect with your Supabase URL and <b>service_role</b> key, then pick a customer
+        on the left to read and answer their messages.
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="row">
+        <span class="to">Send to:</span>
+        <select id="target" style="width:auto;min-width:260px"></select>
+        <span class="grow"></span>
+        <span class="dim" id="targetHint" style="font-size:12px"></span>
+      </div>
+      <div class="send-row">
+        <textarea id="reply" placeholder="Type a reply…  (Enter to send, Shift+Enter for a new line)"
+                  disabled></textarea>
+        <button class="primary" id="btnSend" onclick="sendReply()" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Announcement dialog -->
+<dialog id="dlgBroadcast">
+  <div class="head">Send an announcement banner</div>
+  <div class="body">
+    <div>
+      <label class="f">WHO SEES IT</label>
+      <select id="bcScope" onchange="bcScopeChanged()">
+        <option value="all">Everyone — every device on every account</option>
+        <option value="account">One account — all of that customer's devices</option>
+        <option value="device">One device</option>
+        <option value="tag">Everyone with a tag</option>
+      </select>
+    </div>
+    <div id="bcTargetWrap" style="display:none">
+      <label class="f" id="bcTargetLabel">TARGET</label>
+      <select id="bcTarget"></select>
+    </div>
+    <div>
+      <label class="f">MESSAGE</label>
+      <textarea id="bcBody" style="height:80px"
+                placeholder="e.g. Server maintenance tonight 2–3 AM EST. Streams may restart."></textarea>
+    </div>
+    <div class="dim" style="font-size:12px">
+      Announcements appear as a banner on the browse screen. For a conversation the
+      customer can answer, close this and send a normal message instead.
+    </div>
+  </div>
+  <div class="foot">
+    <button onclick="document.getElementById('dlgBroadcast').close()">Cancel</button>
+    <button class="primary" onclick="sendBroadcast()">Send announcement</button>
+  </div>
+</dialog>
+
+<!-- Tags dialog -->
+<dialog id="dlgTags">
+  <div class="head">Tags &amp; notes</div>
+  <div class="body">
+    <div>
+      <label class="f">TAGS — comma separated, applied to every device on this account</label>
+      <input id="tagInput" placeholder="vip, reseller-north, trial">
+    </div>
+    <div>
+      <label class="f">PRIVATE NOTE — never shown to the customer</label>
+      <textarea id="noteInput" style="height:80px" placeholder="Paid through March. Two sticks + one phone."></textarea>
+    </div>
+  </div>
+  <div class="foot">
+    <button onclick="document.getElementById('dlgTags').close()">Cancel</button>
+    <button class="primary" onclick="saveTags()">Save</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// --------------------------------------------------------------------
+// Hosting guard.
+//
+// This page runs with a Supabase service_role key, which bypasses row-
+// level security entirely — full read/write on every table. That is fine
+// in a local browser tab you control. It stops being fine the moment this
+// file is served from anywhere reachable over a network (GitHub Pages,
+// any static host, a shared server) — including by accident, e.g. someone
+// later enabling Pages for this repository. So this refuses to run
+// unless it's opened as a local file or from localhost. Do not remove
+// this to "make it work" on a host; move the file to a private location
+// you control instead (or don't host it as a web page at all).
+// --------------------------------------------------------------------
+(function hostingGuard() {
+  const proto = location.protocol;
+  const host = location.hostname;
+  const isLocal = proto === 'file:' || host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '';
+  if (isLocal) return;
+  document.body.innerHTML =
+    '<div style="max-width:560px;margin:15vh auto;padding:28px;' +
+    'font:15px/1.6 ui-sans-serif,system-ui,sans-serif;color:#f2f6ff;' +
+    'background:#18223a;border:1px solid #f87171;border-radius:14px">' +
+    '<h1 style="margin:0 0 12px;font-size:18px;color:#f87171">This page will not run here</h1>' +
+    '<p>This console uses a Supabase <b>service_role</b> key, which has full ' +
+    'read/write access to the database and bypasses every row-level-security ' +
+    'rule. It only runs from a local file or localhost so that key never ' +
+    'travels over a network.</p>' +
+    '<p>Detected origin: <code>' + esc(proto + '//' + host) + '</code></p>' +
+    '<p>Download <code>admin/console.html</code> and open it directly from ' +
+    'your computer instead of hosting it.</p></div>';
+  throw new Error('console.html refused to run on a non-local origin: ' + proto + '//' + host);
+})();
+
+let SUPABASE_URL = "";
+let SERVICE_KEY  = "";
+
+let devices = [];      // rows from public.devices
+let messages = [];     // recent rows from public.messages
+let accounts = [];     // derived: one entry per customer
+let current = null;    // selected account_ref
+let filter = 'all';
+let tagFilter = null;
+let timer = null;
+
+const $ = id => document.getElementById(id);
+
+function toast(msg, kind){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.style.display = 'none', 3400);
+}
+function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function when(ts){
+  if(!ts) return '';
+  const d = new Date(ts), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay ? d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+                 : d.toLocaleDateString([], {month:'short',day:'numeric'}) + ' ' +
+                   d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+function hoursSince(ts){ return ts ? (Date.now() - new Date(ts).getTime()) / 3.6e6 : 1e9; }
+
+// ---------------------------------------------------------------- API
+
+function headers(extra){
+  return Object.assign({
+    'apikey': SERVICE_KEY,
+    'Authorization': 'Bearer ' + SERVICE_KEY,
+    'Content-Type': 'application/json'
+  }, extra || {});
+}
+async function api(path, opts){
+  const res = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/rest/v1/' + path,
+                          Object.assign({ headers: headers() }, opts || {}));
+  if(!res.ok) throw new Error('HTTP ' + res.status + ' — ' + (await res.text()).slice(0,160));
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+function connect(){
+  SUPABASE_URL = $('url').value.trim() || SUPABASE_URL;
+  SERVICE_KEY  = $('key').value.trim() || SERVICE_KEY;
+  if(!SUPABASE_URL || !SERVICE_KEY){ toast('Enter both the URL and the key', 'bad'); return; }
+  refreshAll(true);
+  if(timer) clearInterval(timer);
+  timer = setInterval(() => refreshAll(false), 5000);
+}
+
+async function refreshAll(loud){
+  if(!SUPABASE_URL || !SERVICE_KEY) return;
+  try{
+    const [devRows, msgRows] = await Promise.all([
+      api('devices?select=*&order=last_seen.desc&limit=2000'),
+      api('messages?select=*&order=created_at.desc&limit=2000')
+    ]);
+    devices = devRows;
+    messages = msgRows.slice().reverse();   // oldest first
+    buildAccounts();
+    renderDir();
+    renderTagChips();
+    if(current) renderThread();
+    $('dot').className = 'dot on';
+    const unread = accounts.reduce((n,a) => n + a.unread, 0);
+    $('status').textContent = accounts.length + ' account' + (accounts.length===1?'':'s')
+                            + ' · ' + devices.length + ' device' + (devices.length===1?'':'s')
+                            + (unread ? ' · ' + unread + ' unread' : '');
+    if(loud){ toast('Connected', 'good'); $('setup').style.display = 'none'; }
+  }catch(e){
+    $('dot').className = 'dot';
+    $('status').textContent = 'Connection failed';
+    if(loud) toast(e.message, 'bad');
+  }
+}
+
+// Group devices + messages into one entry per customer account.
+function buildAccounts(){
+  const map = new Map();
+  const ensure = ref => {
+    if(!map.has(ref)) map.set(ref, {
+      ref, devices: [], names: new Set(), tags: new Set(),
+      unread: 0, last: null, lastSender: '', lastAt: null, note: ''
+    });
+    return map.get(ref);
+  };
+
+  for(const d of devices){
+    const a = ensure(d.account_ref || d.device_id);
+    a.devices.push(d);
+    if(d.client_name) a.names.add(d.client_name);
+    (d.tags || []).forEach(t => a.tags.add(t));
+    if(d.notes) a.note = d.notes;
+  }
+
+  // Fall back to the device's registered account when a message predates registration.
+  const devAccount = new Map(devices.map(d => [d.device_id, d.account_ref]));
+  for(const m of messages){
+    const ref = m.account_ref || devAccount.get(m.device_id) || m.device_id;
+    m._account = ref;
+    const a = ensure(ref);
+    if(m.client_name) a.names.add(m.client_name);
+    if(m.sender === 'client' && !m.read_by_support) a.unread++;
+    a.last = m.body; a.lastSender = m.sender; a.lastAt = m.created_at;
+  }
+
+  accounts = [...map.values()].sort((x,y) => {
+    if(!!y.unread - !!x.unread) return y.unread - x.unread;
+    return new Date(y.lastAt || y.devices[0]?.last_seen || 0)
+         - new Date(x.lastAt || x.devices[0]?.last_seen || 0);
+  });
+}
+
+// ---------------------------------------------------------------- directory
+
+function setFilter(f){
+  filter = f;
+  document.querySelectorAll('#filters .chip')
+          .forEach(c => c.classList.toggle('on', c.dataset.f === f));
+  renderDir();
+}
+function renderTagChips(){
+  const all = new Set();
+  devices.forEach(d => (d.tags||[]).forEach(t => all.add(t)));
+  $('tagchips').innerHTML = [...all].sort().map(t =>
+    `<span class="chip ${tagFilter===t?'on':''}" onclick="toggleTag('${esc(t)}')">#${esc(t)}</span>`
+  ).join('');
+}
+function toggleTag(t){ tagFilter = (tagFilter === t) ? null : t; renderTagChips(); renderDir(); }
+
+function visibleAccounts(){
+  const q = $('search').value.trim().toLowerCase();
+  return accounts.filter(a => {
+    if(filter === 'unread' && !a.unread) return false;
+    if(filter === 'live'   && !a.devices.some(d => hoursSince(d.last_seen) < 24)) return false;
+    if(filter === 'quiet'  && a.lastAt) return false;
+    if(tagFilter && !a.tags.has(tagFilter)) return false;
+    if(!q) return true;
+    const hay = [a.ref, [...a.names].join(' '), [...a.tags].join(' '),
+                 a.devices.map(d => d.device_id).join(' ')].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function renderDir(){
+  const rows = visibleAccounts();
+  $('dirList').innerHTML = rows.map(a => {
+    const live = a.devices.some(d => hoursSince(d.last_seen) < 24);
+    const name = [...a.names][0] || a.ref;
+    return `<div class="acct ${current===a.ref?'active':''}" onclick="openAccount('${esc(a.ref)}')">
+      <div class="top">
+        <span class="name">${esc(name)}</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          ${a.unread ? `<span class="badge">${a.unread}</span>` : ''}
+          <span class="dim" style="font-size:11px">${when(a.lastAt)}</span>
+        </span>
+      </div>
+      <div class="ref">${esc(a.ref)}</div>
+      <div class="last">${a.lastSender==='support' ? '↩ ' : ''}${esc(a.last || 'No messages yet')}</div>
+      <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap">
+        <span class="pill">${a.devices.length} device${a.devices.length===1?'':'s'}</span>
+        ${live ? '<span class="pill" style="color:var(--good)">active</span>' : ''}
+        ${[...a.tags].map(t => `<span class="pill">#${esc(t)}</span>`).join('')}
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty">Nothing matches that filter.</div>';
+}
+
+// ---------------------------------------------------------------- thread
+
+function account(ref){ return accounts.find(a => a.ref === ref); }
+
+async function openAccount(ref){
+  current = ref;
+  renderDir();
+  renderThread();
+  $('btnTags').disabled = false;
+  $('reply').disabled = false;
+  $('btnSend').disabled = false;
+  await markRead(ref);
+}
+
+function renderThread(){
+  const a = account(current);
+  if(!a) return;
+  $('who').textContent = [...a.names][0] || a.ref;
+  $('whoRef').textContent = a.ref;
+
+  $('devices').innerHTML = a.devices.map(d => {
+    const live = hoursSince(d.last_seen) < 24;
+    return `<span class="dev" title="${esc(d.device_model||'')} · last seen ${when(d.last_seen)}">
+      <span class="st ${live?'live':''}"></span>${esc(d.device_id)}</span>`;
+  }).join('') || '<span class="dim" style="font-size:12px">no registered devices yet</span>';
+
+  // Recipient picker: the whole account, or one specific stick.
+  const sel = $('target');
+  const prev = sel.value;
+  sel.innerHTML =
+    `<option value="account">Whole account — ${a.devices.length || 1} device${a.devices.length===1?'':'s'}</option>`
+    + a.devices.map(d => `<option value="dev:${esc(d.device_id)}">Only ${esc(d.device_id)}`
+        + `${d.device_model ? ' · ' + esc(d.device_model) : ''}</option>`).join('');
+  if([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  targetChanged();
+
+  const thread = messages.filter(m => m._account === current);
+  $('msgs').innerHTML = thread.map(m => {
+    const mine = m.sender === 'support';
+    const scope = m.device_id ? m.device_id : 'whole account';
+    return `<div class="bubble ${mine?'out':'in'}">${esc(m.body)}
+      <div class="meta"><span>${when(m.created_at)}</span>
+        <span>${mine ? '→ ' : '← '}${esc(scope)}</span></div>
+    </div>`;
+  }).join('') || '<div class="empty">No messages with this customer yet. '
+               + 'You can start the conversation below.</div>';
+  $('msgs').scrollTop = $('msgs').scrollHeight;
+}
+
+function targetChanged(){
+  const v = $('target').value;
+  $('targetHint').textContent = v === 'account'
+    ? 'Every device this customer owns will see it'
+    : 'Only that one device will see it';
+}
+$('target').addEventListener('change', targetChanged);
+
+async function markRead(ref){
+  const a = account(ref);
+  if(!a || !a.unread) return;
+  const ids = a.devices.map(d => d.device_id);
+  const msgIds = messages.filter(m => m._account === ref && m.sender === 'client'
+                                   && !m.read_by_support).map(m => m.id);
+  if(!msgIds.length) return;
+  try{
+    await api('messages?id=in.(' + msgIds.map(encodeURIComponent).join(',') + ')',
+              { method:'PATCH', body: JSON.stringify({ read_by_support: true }) });
+    msgIds.forEach(id => { const m = messages.find(x => x.id === id); if(m) m.read_by_support = true; });
+    a.unread = 0;
+    renderDir();
+  }catch(e){ /* non-fatal */ }
+}
+
+async function sendReply(){
+  const body = $('reply').value.trim();
+  const a = account(current);
+  if(!body || !a){ toast('Pick a customer first', 'bad'); return; }
+  const target = $('target').value;
+
+  const row = { sender:'support', body, read_by_support:true, account_ref: a.ref };
+  if(target === 'account'){
+    row.device_id = null;                       // delivered to every device on the account
+  }else{
+    row.device_id = target.slice(4);            // "dev:XXXX"
+  }
+
+  try{
+    await api('messages', { method:'POST', body: JSON.stringify(row) });
+    $('reply').value = '';
+    await refreshAll(false);
+    renderThread();
+    toast(target === 'account' ? 'Sent to the whole account' : 'Sent to that device', 'good');
+  }catch(e){ toast(e.message, 'bad'); }
+}
+
+$('reply').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendReply(); }
+});
+
+// ---------------------------------------------------------------- announcements
+
+function openBroadcast(){
+  if(!SUPABASE_URL){ toast('Connect first', 'bad'); return; }
+  bcScopeChanged();
+  $('dlgBroadcast').showModal();
+}
+function bcScopeChanged(){
+  const scope = $('bcScope').value;
+  const wrap = $('bcTargetWrap'), sel = $('bcTarget'), label = $('bcTargetLabel');
+  if(scope === 'all'){ wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  if(scope === 'account'){
+    label.textContent = 'ACCOUNT';
+    sel.innerHTML = accounts.map(a =>
+      `<option value="${esc(a.ref)}">${esc([...a.names][0] || a.ref)} — ${esc(a.ref)}</option>`).join('');
+    if(current) sel.value = current;
+  }else if(scope === 'device'){
+    label.textContent = 'DEVICE';
+    sel.innerHTML = devices.map(d =>
+      `<option value="${esc(d.device_id)}">${esc(d.device_id)} — ${esc(d.client_name || d.account_ref)}</option>`).join('');
+  }else{
+    label.textContent = 'TAG';
+    const all = new Set(); devices.forEach(d => (d.tags||[]).forEach(t => all.add(t)));
+    sel.innerHTML = [...all].sort().map(t => `<option value="${esc(t)}">#${esc(t)}</option>`).join('')
+                    || '<option value="">No tags yet</option>';
+  }
+}
+async function sendBroadcast(){
+  const body = $('bcBody').value.trim();
+  const scope = $('bcScope').value;
+  const target = $('bcTarget').value;
+  if(!body){ toast('Write the message first', 'bad'); return; }
+
+  let rows;
+  if(scope === 'all'){
+    rows = [{ body, audience:'all', target:null }];
+  }else if(scope === 'account'){
+    rows = [{ body, audience:'account', target }];
+  }else if(scope === 'device'){
+    rows = [{ body, audience:'device', target }];
+  }else{
+    // A tag expands into one account-targeted notice per matching customer.
+    const refs = [...new Set(devices.filter(d => (d.tags||[]).includes(target))
+                                    .map(d => d.account_ref))];
+    if(!refs.length){ toast('No devices carry that tag', 'bad'); return; }
+    rows = refs.map(r => ({ body, audience:'account', target:r }));
+  }
+
+  try{
+    await api('notices', { method:'POST', body: JSON.stringify(rows) });
+    $('bcBody').value = '';
+    $('dlgBroadcast').close();
+    toast(rows.length === 1 ? 'Announcement sent' : 'Announcement sent to ' + rows.length + ' accounts', 'good');
+  }catch(e){ toast(e.message, 'bad'); }
+}
+
+// ---------------------------------------------------------------- tags & notes
+
+function openTags(){
+  const a = account(current);
+  if(!a) return;
+  $('tagInput').value = [...a.tags].join(', ');
+  $('noteInput').value = a.note || '';
+  $('dlgTags').showModal();
+}
+async function saveTags(){
+  const a = account(current);
+  if(!a) return;
+  const tags = $('tagInput').value.split(',').map(s => s.trim()).filter(Boolean);
+  const notes = $('noteInput').value.trim();
+  try{
+    await api('devices?account_ref=eq.' + encodeURIComponent(a.ref),
+              { method:'PATCH', body: JSON.stringify({ tags, notes }) });
+    $('dlgTags').close();
+    await refreshAll(false);
+    toast('Saved', 'good');
+  }catch(e){ toast(e.message, 'bad'); }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG-ONLY network security policy. Trusts user-installed CAs so you can
+  point a debug build at mitmproxy/Charles and inspect panel traffic while
+  developing. This file only applies to debug builds — release builds use
+  app/src/main/res/xml/network_security_config.xml, which trusts system
+  CAs only. Never merge the two.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

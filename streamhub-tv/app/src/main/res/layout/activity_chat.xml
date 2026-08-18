@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/bg_deep"
+    android:padding="24dp">
+
+    <!-- Conversation -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.7"
+        android:orientation="vertical"
+        android:background="@drawable/bg_column"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Support chat"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/chatState"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_pill"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/chatList"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="10dp"
+            android:clipToPadding="false"
+            android:paddingBottom="8dp"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/chatEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="20dp"
+            android:textColor="@color/text_dim"
+            android:textSize="14sp"
+            android:text="No messages yet. Send us a note and we'll reply here."
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <EditText
+                android:id="@+id/chatInput"
+                style="@style/FieldInput"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:hint="@string/hint_message"
+                android:inputType="textCapSentences|textMultiLine"
+                android:maxLines="3"
+                android:singleLine="false"
+                android:importantForAutofill="no" />
+
+            <View android:layout_width="10dp" android:layout_height="1dp" />
+
+            <Button
+                android:id="@+id/btnSend"
+                style="@style/TvButton"
+                android:text="@string/send" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View android:layout_width="16dp" android:layout_height="match_parent" />
+
+    <!-- Quick help side panel -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:background="@drawable/bg_column"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Other ways to reach us"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button android:id="@+id/btnWhatsApp" style="@style/TvButton"
+            android:layout_width="match_parent" android:layout_marginTop="12dp"
+            android:text="WhatsApp" />
+
+        <Button android:id="@+id/btnTelegram" style="@style/TvButton"
+            android:layout_width="match_parent" android:layout_marginTop="10dp"
+            android:text="Telegram" />
+
+        <Button android:id="@+id/btnEmail" style="@style/TvButton"
+            android:layout_width="match_parent" android:layout_marginTop="10dp"
+            android:text="Email" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="14dp"
+            android:background="@color/divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Your details"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/deviceInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="monospace"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:lineSpacingExtra="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/text_dim"
+            android:textSize="12sp"
+            android:text="Quote this ID when you contact support — it links straight to your line." />
+    </LinearLayout>
+</LinearLayout>
