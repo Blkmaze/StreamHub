@@ -292,14 +292,6 @@ public class SettingsActivity extends AppCompatActivity {
                     + "key here. The key is safe to ship: row-level security limits each "
                     + "device to its own conversation.";
         } else if ("account".equals(tag)) {
-            edit("Account code (blank = derive from your line)", prefs.getAccountCode(),
-                    InputType.TYPE_CLASS_TEXT, value -> {
-                        prefs.setAccountCode(value);
-                        new com.wm.streamhub.chat.ChatClient(SettingsActivity.this)
-                                .registerDevice(true);
-                        build();
-                    });
-        } else if ("account".equals(tag)) {
             text = "Which customer account this device belongs to.\n\n"
                     + "By default it is derived from the line itself (username@host), so "
                     + "every stick in one household groups into a single conversation and "
