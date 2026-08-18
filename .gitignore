@@ -10,3 +10,10 @@
 local.properties
 app/build/
 out/
+
+# Signing material — keep this out of a public repository.
+# In CI it comes from the KEYSTORE_BASE64 secret instead.
+app/keystore/*.jks
+app/keystore/*.keystore
+*.jks
+keystore.properties

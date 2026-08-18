@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -231,6 +232,92 @@ public class Prefs {
             sp.edit().putString("deviceId", id).apply();
         }
         return id;
+    }
+
+    /**
+     * Which customer account this device belongs to.
+     *
+     * Derived from the line itself (username + host) so every stick in one household
+     * lands in the same thread automatically. A reseller can override it with a code
+     * of their own — useful when one customer has several different panels.
+     */
+    public String accountRef() {
+        String manual = getAccountCode();
+        if (!manual.isEmpty()) return sanitizeRef(manual);
+
+        List<ServerProfile> all = getServers();
+        ServerProfile active = null;
+        String activeId = getActiveServerId();
+        for (ServerProfile s : all) {
+            if (s.id.equals(activeId)) active = s;
+        }
+        if (active == null && !all.isEmpty()) active = all.get(0);
+        if (active == null) return "unassigned-" + getDeviceId().toLowerCase(Locale.US);
+
+        if (active.isXtream()) {
+            String host = active.normalizedHost()
+                    .replace("https://", "").replace("http://", "");
+            return sanitizeRef(active.username + "@" + host);
+        }
+        String url = active.m3uUrl;
+        String creds = extractPlaylistIdentity(url);
+        return sanitizeRef(creds.isEmpty() ? shortHash(url) : creds);
+    }
+
+    /** Manual override the reseller can type in Settings. Empty = derive automatically. */
+    public String getAccountCode() {
+        return sp.getString("accountCode", BuildDefaults.ACCOUNT_CODE);
+    }
+
+    public void setAccountCode(String v) {
+        sp.edit().putString("accountCode", v == null ? "" : v.trim()).apply();
+    }
+
+    public long getLastRegisterAt() {
+        return sp.getLong("lastRegister", 0L);
+    }
+
+    public void setLastRegisterAt(long v) {
+        sp.edit().putLong("lastRegister", v).apply();
+    }
+
+    /** Pulls username/host out of a get.php style playlist URL when possible. */
+    private static String extractPlaylistIdentity(String url) {
+        if (url == null) return "";
+        try {
+            java.net.URI u = java.net.URI.create(url.trim());
+            String host = u.getHost() == null ? "" : u.getHost();
+            String query = u.getQuery() == null ? "" : u.getQuery();
+            String user = "";
+            for (String part : query.split("&")) {
+                int eq = part.indexOf('=');
+                if (eq <= 0) continue;
+                String k = part.substring(0, eq).toLowerCase(Locale.US);
+                if (k.equals("username") || k.equals("user")) {
+                    user = part.substring(eq + 1);
+                    break;
+                }
+            }
+            if (!user.isEmpty() && !host.isEmpty()) return user + "@" + host;
+            if (!host.isEmpty()) return host + "-" + shortHash(url);
+        } catch (Exception ignored) {
+        }
+        return "";
+    }
+
+    private static String shortHash(String in) {
+        int h = (in == null ? "" : in).hashCode();
+        return Integer.toHexString(h == Integer.MIN_VALUE ? 0 : Math.abs(h));
+    }
+
+    /** Keeps refs safe for URLs, PostgREST filters and console display. */
+    public static String sanitizeRef(String in) {
+        if (in == null) return "";
+        String out = in.trim().toLowerCase(Locale.US);
+        out = out.replaceAll("[^a-z0-9._@-]", "-");
+        out = out.replaceAll("-{2,}", "-");
+        if (out.length() > 64) out = out.substring(0, 64);
+        return out;
     }
 
     public String getClientName() {

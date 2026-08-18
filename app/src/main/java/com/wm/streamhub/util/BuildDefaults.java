@@ -22,6 +22,16 @@ public final class BuildDefaults {
     public static final String SUPPORT_TELEGRAM = "";   // e.g. yourhandle
     public static final String SUPPORT_EMAIL = "";      // e.g. support@yourdomain.com
 
+    /**
+     * Optional fixed account code for this build. Leave blank and the app derives the
+     * account from the customer's own line (username@host), which groups every stick
+     * in one household into a single conversation automatically.
+     *
+     * Set it when you build a per-customer APK and want your own reference number
+     * (invoice ID, CRM ID) to be what shows up in the support console.
+     */
+    public static final String ACCOUNT_CODE = "";
+
     /** Optional: URL returning JSON {"message":"...","updatedAt":1699999999} shown as a banner. */
     public static final String NOTICE_URL = "";
 

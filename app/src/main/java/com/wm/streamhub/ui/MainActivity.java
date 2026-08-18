@@ -106,6 +106,7 @@ public class MainActivity extends AppCompatActivity {
         wireLists();
         loadServers();
         fetchNotice();
+        chat.registerDevice(false);
     }
 
     @Override

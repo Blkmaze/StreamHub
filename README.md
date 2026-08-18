@@ -48,10 +48,23 @@ Minimum Android 5.0 (API 21).
 
 **Customer messaging** (`chat/ChatClient.java`, `admin/console.html`)
 - Two-way chat inside the app, backed by Supabase — no server for you to maintain
-- Each device gets a short ID; row-level security means a device can only ever read
-  and write its own conversation, so shipping the anon key is safe
-- You reply from `admin/console.html` — a single self-contained page, no install
-- Broadcast notices push a banner to every device ("maintenance tonight 2–3 AM")
+- **Addressed to individual customers, not just broadcast.** Three scopes:
+  - **Device** — one stick. `messages.device_id = 'A1B2C3D4'`
+  - **Account** — one customer, delivered to every device they own.
+    `messages.device_id IS NULL, messages.account_ref = 'john@panel.tv:8080'`
+  - **Everyone** — announcement banner to all devices (`notices.audience = 'all'`),
+    or to one account, one device, or everyone carrying a tag
+- Devices group themselves into accounts automatically: the account reference is derived
+  from the customer's own line (`username@host`), so a household with three sticks is one
+  conversation, and a reply reaches all three. Override it with your own invoice/CRM code
+  via `BuildDefaults.ACCOUNT_CODE` or Settings if you'd rather use your own numbering
+- Every device registers itself on launch, so customers appear in your directory before
+  they ever write in — you can open a conversation first
+- Row-level security scopes reads to the device's own thread plus its account's, and the
+  account is resolved from the server-side registry rather than trusted from the request.
+  Holding the anon key does not let anyone read another customer's messages
+- Tags and private notes per account; filter the directory by unread, active-in-24h,
+  never-written, or tag
 - Fallbacks that need no backend at all: one-tap WhatsApp, Telegram, and email,
   each pre-filled with the device ID so you know which line is calling
 
@@ -94,10 +107,38 @@ export ANDROID_HOME=/path/to/android-sdk
 # app/build/outputs/apk/release/app-release.apk
 ```
 
-The release APK is signed with the bundled keystore (`app/keystore/streamhub.jks`,
-password `streamhub`). Keep that file — signing future updates with the same key is
-what lets customers install an update over the top instead of uninstalling first.
-Replace it with your own keystore before you ship widely.
+### Signing
+
+The signing key is **not** committed — `.gitignore` keeps `app/keystore/*.jks` out of the
+repository, which matters because the repo has to be public for Downloader to fetch the
+release without a login.
+
+- **Locally:** keep `app/keystore/streamhub.jks` (password `streamhub`) where it is and
+  `assembleRelease` signs with it.
+- **In CI:** add four repository secrets and the workflow restores the key before building
+  — **Settings → Secrets and variables → Actions → New repository secret**:
+
+  | Secret | Value |
+  |--------|-------|
+  | `KEYSTORE_BASE64` | contents of `KEYSTORE_BASE64.txt` |
+  | `KEYSTORE_PASSWORD` | `streamhub` |
+  | `KEY_ALIAS` | `streamhub` |
+  | `KEY_PASSWORD` | `streamhub` |
+
+- **Without the secrets** the build still works — it falls back to the debug key, and the
+  APK still installs. Sticks installed that way need an uninstall before moving to a
+  properly signed update, so add the secrets before you hand builds to customers.
+
+Keep the `.jks` file backed up somewhere private. Losing it means every customer has to
+uninstall and reinstall to take an update, because Android refuses an update signed with
+a different key.
+
+### What not to commit to a public repo
+
+`BuildDefaults.java` is committed, so leave real customer credentials out of it
+(`PRESET_USER` / `PRESET_PASS`). The Supabase **anon** key is designed to be shipped in
+the app and is safe there; the **service_role** key never belongs in the repo — it stays
+in your browser when you use the console.
 
 ---
 
@@ -126,6 +167,10 @@ public static final String SUPPORT_WHATSAPP = "15551234567";
 public static final String SUPPORT_TELEGRAM = "yourhandle";
 public static final String SUPPORT_EMAIL    = "support@yourdomain.com";
 
+// Optional: your own reference for this customer (invoice or CRM ID). Leave blank
+// and the account is derived from their line, which is usually what you want.
+public static final String ACCOUNT_CODE = "";
+
 // Optional: preload the customer's line so they see channels on first launch
 public static final String PRESET_NAME = "Main server";
 public static final String PRESET_HOST = "http://panel.example.com:8080";
@@ -144,8 +189,24 @@ Everything is also editable at runtime under **Settings**.
 4. Open `admin/console.html` in any browser, paste the same Project URL and your
    **service_role** key, and press Connect
 
-The console lists every device that has written in, shows unread counts, lets you
-reply, and broadcasts notices. The service_role key never leaves your browser tab.
+The console lists every customer account, groups their devices underneath, and shows
+unread counts. Above the reply box is a **Send to** selector — *Whole account* (every
+device that customer owns) or one specific device. **Send announcement** opens the banner
+composer, where the audience is Everyone, one account, one device, or everyone with a tag.
+The service_role key never leaves your browser tab.
+
+### How a customer is identified
+
+| Situation | Account reference |
+|-----------|-------------------|
+| Xtream line | `username@host:port` — derived automatically |
+| M3U playlist with credentials in the URL | `username@host` |
+| M3U playlist without credentials | `host-<hash>` |
+| You set `ACCOUNT_CODE` or the Settings field | exactly what you typed |
+
+Devices that share a reference share one conversation. If a customer changes provider,
+their reference changes with it — set a manual account code if you want the thread to
+follow the person rather than the line.
 
 ---
 

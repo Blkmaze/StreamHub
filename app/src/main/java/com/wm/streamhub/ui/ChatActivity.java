@@ -77,6 +77,7 @@ public class ChatActivity extends AppCompatActivity implements ChatClient.Listen
     protected void onResume() {
         super.onResume();
         chat.setListener(this);
+        chat.registerDevice(false);
         chat.refresh();
         chat.startPolling();
     }
@@ -91,6 +92,7 @@ public class ChatActivity extends AppCompatActivity implements ChatClient.Listen
 
     private void showDeviceInfo() {
         StringBuilder sb = new StringBuilder();
+        sb.append("Account: ").append(prefs.accountRef()).append('\n');
         sb.append("Device ID: ").append(prefs.getDeviceId()).append('\n');
         String name = prefs.getClientName();
         if (!name.isEmpty()) sb.append("Name: ").append(name).append('\n');

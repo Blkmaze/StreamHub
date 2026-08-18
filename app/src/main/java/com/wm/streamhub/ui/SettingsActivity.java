@@ -102,6 +102,11 @@ public class SettingsActivity extends AppCompatActivity {
         rows.add(new RowAdapter.Row("Run a speed test",
                 monitor.connectionLabel() + " · " + monitor.speedLabel()).tag("speedtest"));
 
+        rows.add(new RowAdapter.Row("Support account",
+                prefs.getAccountCode().isEmpty()
+                        ? "Automatic · " + prefs.accountRef()
+                        : "Manual · " + prefs.accountRef()).tag("account"));
+
         rows.add(new RowAdapter.Row("Your name for support",
                 prefs.getClientName().isEmpty() ? "Not set" : prefs.getClientName())
                 .tag("clientname"));
@@ -154,9 +159,19 @@ public class SettingsActivity extends AppCompatActivity {
             prefs.setShowStats(!prefs.isShowStats());
         } else if ("speedtest".equals(tag)) {
             runSpeedTest();
+        } else if ("account".equals(tag)) {
+            edit("Account code (blank = derive from your line)", prefs.getAccountCode(),
+                    InputType.TYPE_CLASS_TEXT, value -> {
+                        prefs.setAccountCode(value);
+                        new com.wm.streamhub.chat.ChatClient(SettingsActivity.this)
+                                .registerDevice(true);
+                        build();
+                    });
         } else if ("clientname".equals(tag)) {
             edit("Your name", prefs.getClientName(), InputType.TYPE_CLASS_TEXT, value -> {
                 prefs.setClientName(value);
+                new com.wm.streamhub.chat.ChatClient(SettingsActivity.this)
+                        .registerDevice(true);
                 build();
             });
         } else if ("chaturl".equals(tag)) {
@@ -276,6 +291,21 @@ public class SettingsActivity extends AppCompatActivity {
                     + "Run supabase/schema.sql once, then paste the project URL and the anon "
                     + "key here. The key is safe to ship: row-level security limits each "
                     + "device to its own conversation.";
+        } else if ("account".equals(tag)) {
+            edit("Account code (blank = derive from your line)", prefs.getAccountCode(),
+                    InputType.TYPE_CLASS_TEXT, value -> {
+                        prefs.setAccountCode(value);
+                        new com.wm.streamhub.chat.ChatClient(SettingsActivity.this)
+                                .registerDevice(true);
+                        build();
+                    });
+        } else if ("account".equals(tag)) {
+            text = "Which customer account this device belongs to.\n\n"
+                    + "By default it is derived from the line itself (username@host), so "
+                    + "every stick in one household groups into a single conversation and "
+                    + "a message you send to the account reaches all of them.\n\n"
+                    + "Set a code manually to use your own reference instead — an invoice "
+                    + "number or CRM ID — which is then what you see in the support console.";
         } else if ("clientname".equals(tag)) {
             text = "Shown next to this device in your support console, so you know who is "
                     + "writing without asking.";

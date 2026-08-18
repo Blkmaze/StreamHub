@@ -14,12 +14,19 @@ android {
         versionName "1.0.0"
     }
 
+    // The keystore is deliberately NOT committed. Locally, drop your own
+    // app/keystore/streamhub.jks in place; in CI it is decoded from the
+    // KEYSTORE_BASE64 secret. If neither exists we fall back to the debug key so
+    // the build still produces an installable APK.
     signingConfigs {
         release {
-            storeFile file("keystore/streamhub.jks")
-            storePassword "streamhub"
-            keyAlias "streamhub"
-            keyPassword "streamhub"
+            def ksFile = file(System.getenv("KEYSTORE_PATH") ?: "keystore/streamhub.jks")
+            if (ksFile.exists()) {
+                storeFile ksFile
+                storePassword System.getenv("KEYSTORE_PASSWORD") ?: "streamhub"
+                keyAlias System.getenv("KEY_ALIAS") ?: "streamhub"
+                keyPassword System.getenv("KEY_PASSWORD") ?: "streamhub"
+            }
         }
     }
 
@@ -32,7 +39,9 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
-            signingConfig signingConfigs.release
+            signingConfig file("keystore/streamhub.jks").exists()
+                    ? signingConfigs.release
+                    : signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

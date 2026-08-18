@@ -141,6 +141,7 @@ public class ChatClient {
                 try {
                     JSONObject payload = new JSONObject();
                     payload.put("device_id", prefs.getDeviceId());
+                    payload.put("account_ref", prefs.accountRef());
                     payload.put("sender", "client");
                     payload.put("body", text);
                     String name = prefs.getClientName();
@@ -165,6 +166,46 @@ public class ChatClient {
         });
     }
 
+    /**
+     * Announces this device to the support backend so it shows up in the console's
+     * directory even before the customer writes anything, and so replies can be
+     * addressed to the account rather than to a random ID.
+     *
+     * Rate limited to once an hour unless forced.
+     */
+    public void registerDevice(final boolean force) {
+        if (!isConfigured()) return;
+        if (!force && System.currentTimeMillis() - prefs.getLastRegisterAt() < 3600_000L) return;
+        io.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    JSONObject o = new JSONObject();
+                    o.put("device_id", prefs.getDeviceId());
+                    o.put("account_ref", prefs.accountRef());
+                    String name = prefs.getClientName();
+                    o.put("client_name", name.isEmpty() ? null : name);
+                    o.put("app_version", "1.0.0");
+                    o.put("device_model", android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL);
+                    o.put("server_count", prefs.getServers().size());
+
+                    String[] headers = {
+                            "apikey", prefs.getChatApiKey(),
+                            "Authorization", "Bearer " + prefs.getChatApiKey(),
+                            "x-device-id", prefs.getDeviceId(),
+                            "x-account-ref", prefs.accountRef(),
+                            "Prefer", "resolution=merge-duplicates,return=minimal"
+                    };
+                    Http.post(restUrl("devices") + "?on_conflict=device_id",
+                            "application/json", o.toString(), headers, 10000, 12000);
+                    prefs.setLastRegisterAt(System.currentTimeMillis());
+                } catch (Exception ignored) {
+                    // Registration is best effort; messaging still works without it.
+                }
+            }
+        });
+    }
+
     public void refresh() {
         if (!isConfigured()) {
             emit(cached());
@@ -174,9 +215,14 @@ public class ChatClient {
             @Override
             public void run() {
                 try {
+                    // Rows addressed to this stick, plus rows addressed to the whole
+                    // account (device_id null) so a message to the customer reaches
+                    // every screen they own.
                     String url = restUrl("messages")
-                            + "?device_id=eq." + Http.urlEncode(prefs.getDeviceId())
-                            + "&select=id,device_id,sender,body,created_at"
+                            + "?or=(device_id.eq." + Http.urlEncode(prefs.getDeviceId())
+                            + ",and(device_id.is.null,account_ref.eq."
+                            + Http.urlEncode(prefs.accountRef()) + "))"
+                            + "&select=id,device_id,account_ref,sender,body,created_at"
                             + "&order=created_at.asc&limit=200";
                     String body = Http.getWithHeaders(url, authHeaders(false), 10000, 15000);
                     JSONArray arr = new JSONArray(body);
@@ -217,8 +263,15 @@ public class ChatClient {
             @Override
             public void run() {
                 try {
+                    // all-devices notices, plus ones aimed at this account or this stick
                     String url = restUrl("notices")
-                            + "?select=body,created_at&order=created_at.desc&limit=1";
+                            + "?or=(audience.eq.all"
+                            + ",and(audience.eq.account,target.eq."
+                            + Http.urlEncode(prefs.accountRef()) + ")"
+                            + ",and(audience.eq.device,target.eq."
+                            + Http.urlEncode(prefs.getDeviceId()) + "))"
+                            + "&select=body,audience,target,created_at"
+                            + "&order=created_at.desc&limit=1";
                     String body = Http.getWithHeaders(url, authHeaders(false), 8000, 10000);
                     JSONArray arr = new JSONArray(body);
                     final String text = arr.length() > 0
@@ -256,6 +309,7 @@ public class ChatClient {
                     "apikey", key,
                     "Authorization", "Bearer " + key,
                     "x-device-id", prefs.getDeviceId(),
+                    "x-account-ref", prefs.accountRef(),
                     "Prefer", "return=minimal"
             };
         }
@@ -263,6 +317,7 @@ public class ChatClient {
                 "apikey", key,
                 "Authorization", "Bearer " + key,
                 "x-device-id", prefs.getDeviceId(),
+                "x-account-ref", prefs.accountRef(),
                 "Accept", "application/json"
         };
     }
