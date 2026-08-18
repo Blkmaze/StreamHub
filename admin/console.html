@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StreamHub TV — Support Console</title>
+<style>
+  :root{
+    --bg:#060910; --panel:#0d1220; --panel2:#121a2c; --elev:#18223a;
+    --line:rgba(255,255,255,.10); --accent:#40d6ff; --accent-dim:#1e7fa8;
+    --text:#f2f6ff; --muted:#9aa8c4; --dim:#67748e; --good:#4ade80; --bad:#f87171;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column}
+  header{display:flex;gap:12px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,#0d1220,#080c16)}
+  header h1{font-size:16px;margin:0;letter-spacing:.02em;font-weight:700}
+  header .dot{width:10px;height:10px;border-radius:50%;background:var(--dim)}
+  header .dot.on{background:var(--good);box-shadow:0 0 10px var(--good)}
+  header .spacer{flex:1}
+  input,textarea,button{font:inherit;color:inherit}
+  input,textarea{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;outline:none}
+  input:focus,textarea:focus{border-color:var(--accent)}
+  button{background:var(--elev);border:1px solid var(--line);border-radius:9px;padding:9px 16px;cursor:pointer;font-weight:600}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#03121a;border-color:transparent}
+  button.primary:hover{filter:brightness(1.1)}
+  .setup{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#0a0f1c}
+  .setup input{min-width:290px;flex:1}
+  .setup label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+  .setup .field{flex:1;min-width:280px}
+  main{flex:1;display:grid;grid-template-columns:320px 1fr;min-height:0}
+  .list{border-right:1px solid var(--line);overflow-y:auto;background:var(--panel)}
+  .list .head{padding:12px 16px;font-size:11px;letter-spacing:.16em;color:var(--dim);font-weight:700;
+              position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line)}
+  .conv{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer}
+  .conv:hover{background:var(--panel2)}
+  .conv.active{background:#14283f;box-shadow:inset 3px 0 0 var(--accent)}
+  .conv .who{font-weight:600;font-size:14px;display:flex;justify-content:space-between;gap:8px}
+  .conv .who small{color:var(--dim);font-weight:400;white-space:nowrap}
+  .conv .last{color:var(--muted);font-size:13px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .conv .badge{background:var(--accent);color:#03121a;border-radius:10px;padding:0 7px;font-size:11px;font-weight:700}
+  .thread{display:flex;flex-direction:column;min-height:0}
+  .thread .bar{padding:12px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;background:#0a0f1c}
+  .thread .bar b{font-size:15px}
+  .msgs{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px}
+  .bubble{max-width:min(620px,70%);padding:10px 14px;border-radius:14px;white-space:pre-wrap;word-break:break-word}
+  .bubble.in{background:var(--elev);border-top-left-radius:4px;align-self:flex-start}
+  .bubble.out{background:var(--accent-dim);border-top-right-radius:4px;align-self:flex-end}
+  .bubble time{display:block;font-size:11px;color:rgba(255,255,255,.55);margin-top:5px}
+  .composer{border-top:1px solid var(--line);padding:14px 20px;display:flex;gap:10px;background:#0a0f1c}
+  .composer textarea{flex:1;resize:none;height:52px}
+  .empty{margin:auto;color:var(--dim);text-align:center;padding:40px}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--elev);
+         border:1px solid var(--line);padding:10px 18px;border-radius:10px;font-size:14px;display:none}
+  .toast.bad{border-color:var(--bad);color:var(--bad)}
+  details{padding:10px 20px;border-bottom:1px solid var(--line);background:#0a0f1c}
+  summary{cursor:pointer;color:var(--muted);font-size:13px}
+  .row{display:flex;gap:10px;margin-top:10px}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>StreamHub TV — Support Console</h1>
+  <span class="spacer"></span>
+  <span id="status" style="color:var(--muted);font-size:13px">Not connected</span>
+  <button onclick="loadConversations(true)">Refresh</button>
+</header>
+
+<div class="setup">
+  <div class="field">
+    <label>Supabase project URL</label>
+    <input id="url" placeholder="https://yourproject.supabase.co" spellcheck="false">
+  </div>
+  <div class="field">
+    <label>service_role key (stays in this browser tab only)</label>
+    <input id="key" type="password" placeholder="eyJhbGciOi..." spellcheck="false">
+  </div>
+  <button class="primary" style="align-self:flex-end" onclick="connect()">Connect</button>
+</div>
+
+<details>
+  <summary>Send a broadcast notice to every device</summary>
+  <div class="row">
+    <input id="notice" style="flex:1" placeholder="e.g. Server maintenance tonight 2–3 AM EST">
+    <button onclick="sendNotice()">Broadcast</button>
+  </div>
+</details>
+
+<main>
+  <div class="list">
+    <div class="head">CONVERSATIONS</div>
+    <div id="convs"></div>
+  </div>
+  <div class="thread">
+    <div class="bar"><b id="who">Select a conversation</b><span class="spacer" style="flex:1"></span><small id="devmeta" style="color:var(--dim)"></small></div>
+    <div class="msgs" id="msgs"><div class="empty">Connect with your Supabase URL and service_role key to see incoming messages.</div></div>
+    <div class="composer">
+      <textarea id="reply" placeholder="Type a reply…  (Enter to send, Shift+Enter for a new line)"></textarea>
+      <button class="primary" onclick="sendReply()">Send</button>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Optional: hard-code these two so you don't retype them each time.
+let SUPABASE_URL = "";
+let SERVICE_KEY  = "";
+
+let current = null, convCache = [], timer = null;
+
+function el(id){ return document.getElementById(id); }
+function toast(msg, bad){
+  const t = el('toast');
+  t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3200);
+}
+function headers(){
+  return { 'apikey': SERVICE_KEY, 'Authorization': 'Bearer ' + SERVICE_KEY,
+           'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+}
+async function api(path, opts){
+  const res = await fetch(SUPABASE_URL.replace(/\/+$/,'') + '/rest/v1/' + path,
+                          Object.assign({ headers: headers() }, opts || {}));
+  if(!res.ok) throw new Error('HTTP ' + res.status + ' ' + (await res.text()).slice(0,140));
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+function connect(){
+  SUPABASE_URL = el('url').value.trim() || SUPABASE_URL;
+  SERVICE_KEY  = el('key').value.trim() || SERVICE_KEY;
+  if(!SUPABASE_URL || !SERVICE_KEY){ toast('Enter both the URL and the key', true); return; }
+  loadConversations(true);
+  if(timer) clearInterval(timer);
+  timer = setInterval(() => { loadConversations(false); if(current) openConv(current, false); }, 5000);
+}
+async function loadConversations(loud){
+  try{
+    const rows = await api('messages?select=device_id,client_name,body,sender,created_at,read_by_support&order=created_at.desc&limit=500');
+    const seen = new Map();
+    for(const r of rows){
+      if(!seen.has(r.device_id)) seen.set(r.device_id, { ...r, unread: 0 });
+      if(r.sender === 'client' && !r.read_by_support) seen.get(r.device_id).unread++;
+    }
+    convCache = [...seen.values()];
+    renderConvs();
+    el('dot').className = 'dot on';
+    el('status').textContent = convCache.length + ' conversation' + (convCache.length === 1 ? '' : 's');
+    if(loud) toast('Connected');
+  }catch(e){
+    el('dot').className = 'dot';
+    el('status').textContent = 'Connection failed';
+    if(loud) toast(e.message, true);
+  }
+}
+function renderConvs(){
+  el('convs').innerHTML = convCache.map(c => `
+    <div class="conv ${current === c.device_id ? 'active' : ''}" onclick="openConv('${c.device_id}', true)">
+      <div class="who"><span>${esc(c.client_name || 'Device ' + c.device_id)}</span>
+        <small>${c.unread ? `<span class="badge">${c.unread}</span> ` : ''}${when(c.created_at)}</small></div>
+      <div class="last">${c.sender === 'support' ? '↩ ' : ''}${esc(c.body)}</div>
+    </div>`).join('') || '<div class="empty">No messages yet.</div>';
+}
+async function openConv(device, scroll){
+  current = device;
+  renderConvs();
+  el('who').textContent = (convCache.find(c => c.device_id === device)?.client_name) || ('Device ' + device);
+  el('devmeta').textContent = 'ID ' + device;
+  try{
+    const rows = await api('messages?device_id=eq.' + encodeURIComponent(device) +
+                           '&select=id,sender,body,created_at&order=created_at.asc&limit=300');
+    el('msgs').innerHTML = rows.map(m => `
+      <div class="bubble ${m.sender === 'client' ? 'in' : 'out'}">${esc(m.body)}
+        <time>${when(m.created_at)}</time></div>`).join('')
+      || '<div class="empty">No messages in this thread.</div>';
+    if(scroll) el('msgs').scrollTop = el('msgs').scrollHeight;
+    await api('messages?device_id=eq.' + encodeURIComponent(device) + '&sender=eq.client&read_by_support=is.false',
+              { method:'PATCH', body: JSON.stringify({ read_by_support: true }) });
+  }catch(e){ toast(e.message, true); }
+}
+async function sendReply(){
+  const body = el('reply').value.trim();
+  if(!body || !current){ toast('Pick a conversation first', true); return; }
+  try{
+    await api('messages', { method:'POST', body: JSON.stringify({
+      device_id: current, sender: 'support', body: body, read_by_support: true }) });
+    el('reply').value = '';
+    openConv(current, true);
+  }catch(e){ toast(e.message, true); }
+}
+async function sendNotice(){
+  const body = el('notice').value.trim();
+  if(!body) return;
+  try{
+    await api('notices', { method:'POST', body: JSON.stringify({ body }) });
+    el('notice').value = '';
+    toast('Notice broadcast to all devices');
+  }catch(e){ toast(e.message, true); }
+}
+el('reply').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendReply(); }
+});
+function esc(s){ return (s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function when(ts){
+  const d = new Date(ts); const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                 : d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' +
+                   d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+if(SUPABASE_URL && SERVICE_KEY){ el('url').value = SUPABASE_URL; el('key').value = SERVICE_KEY; connect(); }
+</script>
+</body>
+</html>
