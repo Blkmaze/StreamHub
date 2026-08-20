@@ -36,9 +36,29 @@ public final class BuildDefaults {
     public static final String NOTICE_URL = "";
 
     /**
-     * Optional preloaded server. Leave blank for a clean install where the
-     * customer adds their own line.
+     * Optional preloaded server(s). Leave PRESET_SERVERS empty for a clean
+     * install where the customer adds their own line.
+     *
+     * Each row bakes one DNS/portal address into every build as its own
+     * "provider" entry in the Servers column, so the customer only has to
+     * pick their provider and type their username/password on first launch
+     * (see MainActivity#loadServers / ServerProfile#needsCredentials).
+     * Never put real customer usernames/passwords here — this file ships in
+     * the public repo; only the host is safe to bake in.
      */
+    public static final String[][] PRESET_SERVERS = {
+            // { display name, host }
+            {"Prada", "https://pradahype.com"},
+            {"Black", "http://royalsite.xyz"},
+            {"Hydrogen-CHD", "https://live.xyzchd.io"},
+            {"Amelia", "http://insation.tv:80"},
+            {"Flare Pearl", "http://flarepearl.com"},
+            {"Lemo", "http://ky-iptv.com:25461"},
+            {"Lemo2", "http://cdn-ky.com:80"},
+            {"Lemo3", "http://kytv.xyz"},
+    };
+
+    /** Legacy single-preset fields, kept for M3U-only builds. Leave blank. */
     public static final String PRESET_NAME = "";
     public static final String PRESET_HOST = "";
     public static final String PRESET_USER = "";

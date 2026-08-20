@@ -18,28 +18,39 @@ public class StreamHubApp extends Application {
         seedPresetServer();
     }
 
-    /** First launch only: if the build was configured with a preset line, install it. */
+    /** First launch only: if the build was configured with preset lines, install them. */
     private void seedPresetServer() {
         Prefs prefs = new Prefs(this);
         List<ServerProfile> existing = prefs.getServers();
         if (!existing.isEmpty()) return;
 
-        boolean hasXtream = !BuildDefaults.PRESET_HOST.isEmpty();
-        boolean hasM3u = !BuildDefaults.PRESET_M3U.isEmpty();
-        if (!hasXtream && !hasM3u) return;
-
-        ServerProfile s = new ServerProfile();
-        s.name = BuildDefaults.PRESET_NAME.isEmpty() ? "Main server" : BuildDefaults.PRESET_NAME;
-        if (hasXtream) {
+        String firstId = null;
+        int i = 0;
+        for (String[] row : BuildDefaults.PRESET_SERVERS) {
+            if (row.length < 2 || row[1] == null || row[1].trim().isEmpty()) continue;
+            ServerProfile s = new ServerProfile();
+            // Timestamp alone can collide when several presets are created in the
+            // same millisecond; suffix with the loop index to keep ids unique.
+            s.id = System.currentTimeMillis() + "-" + (i++);
+            s.name = row[0];
             s.type = ServerProfile.TYPE_XTREAM;
-            s.host = BuildDefaults.PRESET_HOST;
-            s.username = BuildDefaults.PRESET_USER;
-            s.password = BuildDefaults.PRESET_PASS;
-        } else {
+            s.host = row[1];
+            s.username = "";
+            s.password = "";
+            prefs.upsertServer(s);
+            if (firstId == null) firstId = s.id;
+        }
+
+        boolean hasM3u = !BuildDefaults.PRESET_M3U.isEmpty();
+        if (firstId == null && hasM3u) {
+            ServerProfile s = new ServerProfile();
+            s.name = BuildDefaults.PRESET_NAME.isEmpty() ? "Main server" : BuildDefaults.PRESET_NAME;
             s.type = ServerProfile.TYPE_M3U;
             s.m3uUrl = BuildDefaults.PRESET_M3U;
+            prefs.upsertServer(s);
+            firstId = s.id;
         }
-        prefs.upsertServer(s);
-        prefs.setActiveServerId(s.id);
+
+        if (firstId != null) prefs.setActiveServerId(firstId);
     }
 }

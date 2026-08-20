@@ -120,6 +120,30 @@ public class AdaptiveEngine {
     /** -1 lets ExoPlayer size the byte buffer from the selected track bitrate. */
     private static final int C_TARGET_BUFFER_BYTES = -1;
 
+    /**
+     * How far behind the true live edge playback should deliberately sit, for HLS
+     * live channels. This is the cushion: as long as the player stays this far back,
+     * a throughput dip drains the cushion instead of draining the screen, so nothing
+     * visible happens. Deeper on a shaky line, tighter when latency matters more.
+     */
+    public long liveTargetOffsetMs() {
+        switch (effectiveProfile()) {
+            case Prefs.PROFILE_ANTI_BUFFER: return 14_000;
+            case Prefs.PROFILE_LOW_LATENCY: return 3_000;
+            default: return 7_000;
+        }
+    }
+
+    /** How close to the live edge ExoPlayer is allowed to catch up to (speeds up within this). */
+    public long liveMinOffsetMs() {
+        return Math.max(2_000, liveTargetOffsetMs() - 4_000);
+    }
+
+    /** How far back ExoPlayer is allowed to fall before it has to choose between slowing down and stalling. */
+    public long liveMaxOffsetMs() {
+        return liveTargetOffsetMs() + 10_000;
+    }
+
     // ------------------------------------------------------------------
     // Bitrate ceiling
     // ------------------------------------------------------------------

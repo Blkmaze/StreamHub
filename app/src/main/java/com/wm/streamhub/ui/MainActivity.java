@@ -233,7 +233,17 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(int position, RowAdapter.Row row) {
                 if (row.tag instanceof ServerProfile) {
                     adServers.setActivated(position);
-                    selectServer((ServerProfile) row.tag);
+                    ServerProfile picked = (ServerProfile) row.tag;
+                    if (picked.needsCredentials()) {
+                        // Baked-in DNS, no login yet for this provider — ask before
+                        // trying to load anything with a blank username.
+                        Intent i = new Intent(MainActivity.this, AddServerActivity.class);
+                        i.putExtra(AddServerActivity.EXTRA_ID, picked.id);
+                        i.putExtra(AddServerActivity.EXTRA_LOCK_HOST, true);
+                        startActivity(i);
+                        return;
+                    }
+                    selectServer(picked);
                     RowAdapter.focusPosition(rvCategories, 0);
                 } else {
                     startActivity(new Intent(MainActivity.this, AddServerActivity.class));
@@ -288,7 +298,8 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < latest.size(); i++) {
             ServerProfile a = latest.get(i);
             ServerProfile b = servers.get(i);
-            if (!a.id.equals(b.id) || !a.label().equals(b.label()) || a.enabled != b.enabled) {
+            if (!a.id.equals(b.id) || !a.label().equals(b.label()) || a.enabled != b.enabled
+                    || !a.username.equals(b.username) || !a.host.equals(b.host)) {
                 return true;
             }
         }
@@ -330,6 +341,16 @@ public class MainActivity extends AppCompatActivity {
             adServers.setActivated(0);
         }
         markNav();
+
+        if (chosen.needsCredentials()) {
+            // The DNS was baked in at build time; nothing will load until the
+            // customer types their username/password, so ask for that first.
+            Intent i = new Intent(MainActivity.this, AddServerActivity.class);
+            i.putExtra(AddServerActivity.EXTRA_ID, chosen.id);
+            i.putExtra(AddServerActivity.EXTRA_LOCK_HOST, true);
+            startActivity(i);
+            return;
+        }
         selectServer(chosen);
     }
 

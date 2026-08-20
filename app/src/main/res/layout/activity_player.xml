@@ -14,39 +14,48 @@
         app:surface_type="surface_view"
         app:resize_mode="fit" />
 
-    <!-- Buffering indicator -->
+    <!-- Buffering indicator: a small, low-profile corner toast on purpose — this
+         only ever appears after a real stall outlasts the grace window (see
+         PlayerActivity#STALL_GRACE_MS), so it should never cover the picture. -->
     <LinearLayout
         android:id="@+id/bufferBox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:orientation="vertical"
-        android:gravity="center"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="18dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:background="@drawable/bg_stats"
-        android:padding="22dp"
+        android:alpha="0.92"
+        android:padding="10dp"
         android:visibility="gone">
 
         <ProgressBar
-            android:layout_width="42dp"
-            android:layout_height="42dp"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
             style="?android:attr/progressBarStyle" />
 
-        <TextView
-            android:id="@+id/bufferText"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            android:text="Buffering…" />
+            android:layout_marginStart="10dp"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/bufferSub"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            <TextView
+                android:id="@+id/bufferText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:text="Buffering…" />
+
+            <TextView
+                android:id="@+id/bufferSub"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="10sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Live network / player stats -->

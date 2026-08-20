@@ -20,16 +20,20 @@ import com.wm.streamhub.util.Prefs;
 public class AddServerActivity extends AppCompatActivity {
 
     public static final String EXTRA_ID = "serverId";
+    /** When true, the host field is shown but locked — the DNS was baked in at
+     *  build time and the customer only needs to type username/password. */
+    public static final String EXTRA_LOCK_HOST = "lockHost";
 
     private Prefs prefs;
     private ContentRepository repo;
     private ServerProfile editing;
 
     private EditText inName, inHost, inUser, inPass, inM3u, inEpg;
-    private LinearLayout groupXtream, groupM3u;
-    private TextView formTitle, formStatus;
+    private LinearLayout groupXtream, groupM3u, typeRow;
+    private TextView formTitle, formSub, formStatus;
     private Button typeXtream, typeM3u;
     private boolean isXtream = true;
+    private boolean lockHost = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -40,6 +44,7 @@ public class AddServerActivity extends AppCompatActivity {
         repo = ContentRepository.get(this);
 
         formTitle = findViewById(R.id.formTitle);
+        formSub = findViewById(R.id.formSub);
         formStatus = findViewById(R.id.formStatus);
         inName = findViewById(R.id.inName);
         inHost = findViewById(R.id.inHost);
@@ -49,14 +54,16 @@ public class AddServerActivity extends AppCompatActivity {
         inEpg = findViewById(R.id.inEpg);
         groupXtream = findViewById(R.id.groupXtream);
         groupM3u = findViewById(R.id.groupM3u);
+        typeRow = findViewById(R.id.typeRow);
         typeXtream = findViewById(R.id.typeXtream);
         typeM3u = findViewById(R.id.typeM3u);
 
         String id = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_ID);
+        lockHost = getIntent() != null && getIntent().getBooleanExtra(EXTRA_LOCK_HOST, false);
         if (id != null) editing = prefs.getServer(id);
         if (editing == null) {
             editing = new ServerProfile();
-        } else {
+        } else if (!lockHost) {
             formTitle.setText(R.string.edit_server);
         }
 
@@ -68,6 +75,18 @@ public class AddServerActivity extends AppCompatActivity {
         inM3u.setText(editing.m3uUrl);
         inEpg.setText(editing.epgUrl);
         applyType();
+
+        if (lockHost) {
+            isXtream = true;
+            applyType();
+            typeRow.setVisibility(View.GONE);
+            formTitle.setText(R.string.enter_login);
+            formSub.setVisibility(View.VISIBLE);
+            formSub.setText(R.string.enter_login_sub);
+            inHost.setEnabled(false);
+            inHost.setAlpha(0.6f);
+            inUser.requestFocus();
+        }
 
         typeXtream.setOnClickListener(new View.OnClickListener() {
             @Override

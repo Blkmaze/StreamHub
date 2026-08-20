@@ -65,6 +65,13 @@ public class ServerProfile {
         return "M3U · " + u;
     }
 
+    /** True when the DNS/host was baked in at build time but the customer hasn't
+     *  typed their login yet — the "just enter username and password" case. */
+    public boolean needsCredentials() {
+        return isXtream() && !normalizedHost().isEmpty()
+                && (username == null || username.trim().isEmpty());
+    }
+
     public boolean isValid() {
         if (isXtream()) {
             return !normalizedHost().isEmpty() && username != null && !username.trim().isEmpty();

@@ -73,6 +73,20 @@ public class PlayerActivity extends AppCompatActivity implements Player.Listener
     private int lastProfileUsed = -1;
     private boolean failoverTried = false;
 
+    /**
+     * A stall this short is expected to be absorbed by the live cushion (see
+     * AdaptiveEngine#liveTargetOffsetMs) — nothing is shown on screen for it. Only a
+     * stall that outlasts this grace window is a real, user-visible problem.
+     *
+     * Widened from 1.5s: these run on Fire TV Stick hardware (weak CPUs, not the
+     * top-tier Fire TV Cube), which sees more brief decode hiccups than a phone or
+     * a fast set-top box. A longer grace window means those short hiccups get
+     * absorbed silently instead of flashing a notice for something that resolves
+     * on its own within a couple seconds.
+     */
+    private static final long STALL_GRACE_MS = 3000L;
+    private Runnable pendingBufferOverlay;
+
     private final Runnable statsTick = new Runnable() {
         @Override
         public void run() {
@@ -184,6 +198,7 @@ public class PlayerActivity extends AppCompatActivity implements Player.Listener
     }
 
     private void releasePlayer() {
+        cancelPendingBufferOverlay();
         if (player != null) {
             try {
                 player.removeListener(this);
@@ -216,6 +231,19 @@ public class PlayerActivity extends AppCompatActivity implements Player.Listener
         MediaItem.Builder mb = new MediaItem.Builder().setUri(url);
         if (url.contains(".m3u8")) {
             mb.setMimeType(MimeTypes.APPLICATION_M3U8);
+            if (item.kind == StreamItem.KIND_LIVE) {
+                // Deliberately trail the true live edge by a cushion sized to the
+                // buffer profile, so a throughput dip drains the cushion instead of
+                // ever reaching the screen. ExoPlayer nudges playback speed to stay
+                // inside [min,max] rather than pausing outright.
+                mb.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder()
+                        .setTargetOffsetMs(engine.liveTargetOffsetMs())
+                        .setMinOffsetMs(engine.liveMinOffsetMs())
+                        .setMaxOffsetMs(engine.liveMaxOffsetMs())
+                        .setMinPlaybackSpeed(0.97f)
+                        .setMaxPlaybackSpeed(1.03f)
+                        .build());
+            }
         } else if (url.endsWith(".ts")) {
             mb.setMimeType(MimeTypes.VIDEO_MP2T);
         } else if (url.contains(".mpd")) {
@@ -263,9 +291,12 @@ public class PlayerActivity extends AppCompatActivity implements Player.Listener
         if (state == Player.STATE_BUFFERING) {
             if (everReady) {
                 // A stall during playback: the line just got worse than the stream.
+                // The fixes (lower ceiling, deeper buffer) apply immediately either
+                // way; only the on-screen spinner waits out the grace window, so a
+                // stall the live cushion swallows on its own never reaches the screen.
                 engine.onRebuffer();
                 engine.retune(player);
-                showBuffering(true, "Adjusting for your connection…",
+                scheduleBufferOverlay("Adjusting for your connection…",
                         "Lowering quality · " + engine.statusLine());
                 maybeDeepenBuffer();
             } else {
@@ -275,6 +306,7 @@ public class PlayerActivity extends AppCompatActivity implements Player.Listener
             everReady = true;
             lastReadyAt = System.currentTimeMillis();
             retryCount = 0;
+            cancelPendingBufferOverlay();
             showBuffering(false, null, null);
             hideError();
             updateInfoBar(false);
@@ -410,6 +442,26 @@ public class PlayerActivity extends AppCompatActivity implements Player.Listener
         bufferBox.setVisibility(show ? View.VISIBLE : View.GONE);
         if (title != null) bufferText.setText(title);
         if (sub != null) bufferSub.setText(sub);
+    }
+
+    /** Only puts the spinner on screen if the stall outlasts STALL_GRACE_MS. */
+    private void scheduleBufferOverlay(final String title, final String sub) {
+        if (pendingBufferOverlay != null) return; // already counting down for this stall
+        pendingBufferOverlay = new Runnable() {
+            @Override
+            public void run() {
+                pendingBufferOverlay = null;
+                showBuffering(true, title, sub);
+            }
+        };
+        ui.postDelayed(pendingBufferOverlay, STALL_GRACE_MS);
+    }
+
+    private void cancelPendingBufferOverlay() {
+        if (pendingBufferOverlay != null) {
+            ui.removeCallbacks(pendingBufferOverlay);
+            pendingBufferOverlay = null;
+        }
     }
 
     private void showError(String message, String action) {
