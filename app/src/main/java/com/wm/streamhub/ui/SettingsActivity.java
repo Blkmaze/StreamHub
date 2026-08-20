@@ -211,26 +211,42 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void runSpeedTest() {
-        List<com.wm.streamhub.model.ServerProfile> servers = prefs.getServers();
-        if (servers.isEmpty()) {
-            Toast.makeText(this, "Add a server first", Toast.LENGTH_SHORT).show();
-            return;
+        // Test the server the customer is actually logged into — not just
+        // whichever provider happens to be first in the list. Testing the
+        // wrong server here would give a completely misleading number.
+        com.wm.streamhub.model.ServerProfile s = prefs.getServer(prefs.getActiveServerId());
+        if (s == null) {
+            List<com.wm.streamhub.model.ServerProfile> servers = prefs.getServers();
+            if (servers.isEmpty()) {
+                Toast.makeText(this, "Add a server first", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            s = servers.get(0);
         }
-        com.wm.streamhub.model.ServerProfile s = servers.get(0);
         String url = s.isXtream()
                 ? new com.wm.streamhub.data.XtreamClient(s).probeUrl()
                 : s.m3uUrl;
-        body.setText("Measuring throughput against " + s.label() + "…");
-        monitor.probe(url);
-        list.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                build();
-                body.setText("Result: " + monitor.speedLabel()
-                        + " (" + NetworkMonitor.tierName(monitor.tier()) + ")\n\n"
-                        + engine.statusLine());
+        final String providerName = s.label();
+        body.setText("Testing your connection to " + providerName + "'s server…\n\n"
+                + "This measures throughput to that specific server, not your general "
+                + "internet speed — a fast home connection can still show a low number "
+                + "here if that provider's server (or the route to it) is the slow part.");
+        monitor.testNow(url, bps -> {
+            build();
+            if (bps <= 0) {
+                body.setText("Couldn't reach " + providerName + "'s server just now.\n\n"
+                        + "That points at the provider or the network path to it, not your "
+                        + "home connection.");
+                return;
             }
-        }, 4000);
+            body.setText("Result: " + monitor.speedLabel()
+                    + " (" + NetworkMonitor.tierName(monitor.tier()) + ") to " + providerName + "\n\n"
+                    + engine.statusLine() + "\n\n"
+                    + "If this number is low despite a fast home connection (fiber, high-speed "
+                    + "cable), the bottleneck is most likely " + providerName
+                    + "'s server or its route to you — not something this app or your Wi-Fi "
+                    + "can fix on its own.");
+        });
     }
 
     private interface OnValue {

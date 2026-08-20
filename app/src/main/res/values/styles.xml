@@ -17,13 +17,33 @@
     <style name="ColumnHeader">
         <item name="android:textColor">@color/text_dim</item>
         <item name="android:textSize">@dimen/text_header</item>
-        <item name="android:letterSpacing">0.14</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:letterSpacing">0.18</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
         <item name="android:paddingStart">16dp</item>
         <item name="android:paddingEnd">16dp</item>
         <item name="android:paddingTop">14dp</item>
         <item name="android:paddingBottom">10dp</item>
         <item name="android:singleLine">true</item>
+    </style>
+
+    <!-- Bold condensed display treatment for the brand name and the dynamic
+         hero title — the "broadcast graphics" energy from the approved
+         mockup, applied natively via a system font family (no custom font
+         file needed) rather than a generic default sans title. -->
+    <style name="BrandTitle">
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.06</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="HeroTitle">
+        <item name="android:fontFamily">sans-serif-condensed</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:textAllCaps">true</item>
     </style>
 
     <style name="FieldLabel">

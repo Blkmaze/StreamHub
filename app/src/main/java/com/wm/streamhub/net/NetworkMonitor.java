@@ -175,17 +175,54 @@ public class NetworkMonitor {
             @Override
             public void run() {
                 long[] r = Http.probe(url, 700 * 1024, 6000, 8000);
-                long bytes = r[0];
-                long ms = r[1];
-                if (bytes > 64 * 1024 && ms > 40) {
-                    long bps = (bytes * 8L * 1000L) / ms;
-                    // Cap absurd LAN-cached numbers so the ceiling logic stays sane.
-                    probedBps = Math.min(bps, 200_000_000L);
-                    prefs.setLastBandwidthBps(probedBps);
-                    notifyChanged();
-                }
+                applyProbeResult(r, null);
             }
         });
+    }
+
+    public interface ProbeCallback {
+        /** bps <= 0 means the probe failed (timed out / server unreachable). */
+        void onResult(long bps);
+    }
+
+    /**
+     * A user-requested, on-demand test — used by Settings' "Run a speed test".
+     * Unlike {@link #probe}, this ignores the 45s rate limit (the customer just
+     * pressed a button, they want a fresh number) and pulls a bigger 3 MB sample
+     * so a fast line has room to ramp past TCP slow-start before we measure it.
+     * This is always a test of the ACTIVE PROVIDER'S SERVER, not the customer's
+     * general internet connection — a fast home connection can still measure
+     * low here if that specific server or the route to it is the bottleneck.
+     */
+    public void testNow(final String url, final ProbeCallback cb) {
+        if (url == null || url.isEmpty()) {
+            if (cb != null) main.post(() -> cb.onResult(0));
+            return;
+        }
+        lastProbeAt = System.currentTimeMillis();
+        io.execute(new Runnable() {
+            @Override
+            public void run() {
+                long[] r = Http.probe(url, 3 * 1024 * 1024, 8000, 15000);
+                final long bps = applyProbeResult(r, null);
+                if (cb != null) main.post(() -> cb.onResult(bps));
+            }
+        });
+    }
+
+    /** Shared result-handling for both probe() and testNow(). Returns the measured bps, or 0. */
+    private long applyProbeResult(long[] r, Void unused) {
+        long bytes = r[0];
+        long ms = r[1];
+        if (bytes > 64 * 1024 && ms > 40) {
+            long bps = (bytes * 8L * 1000L) / ms;
+            // Cap absurd LAN-cached numbers so the ceiling logic stays sane.
+            probedBps = Math.min(bps, 200_000_000L);
+            prefs.setLastBandwidthBps(probedBps);
+            notifyChanged();
+            return probedBps;
+        }
+        return 0;
     }
 
     /** Persist the current estimate so the next launch starts smart. */

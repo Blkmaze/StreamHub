@@ -45,6 +45,8 @@ public class ContentRepository {
     /** serverId+kind+categoryId -> streams (Xtream). */
     private final Map<String, List<StreamItem>> streamCache = new HashMap<>();
     private final Map<String, List<Category>> categoryCache = new HashMap<>();
+    /** serverId -> parsed XMLTV guide (only populated when a server has an EPG URL set). */
+    private final Map<String, EpgLoader> epgCache = new HashMap<>();
 
     private ContentRepository(Context c) {
         this.ctx = c.getApplicationContext();
@@ -65,12 +67,46 @@ public class ContentRepository {
 
     public void clearServer(String serverId) {
         playlistCache.remove(serverId);
+        epgCache.remove(serverId);
         List<String> kill = new ArrayList<>();
         for (String k : streamCache.keySet()) if (k.startsWith(serverId + "|")) kill.add(k);
         for (String k : kill) streamCache.remove(k);
         kill.clear();
         for (String k : categoryCache.keySet()) if (k.startsWith(serverId + "|")) kill.add(k);
         for (String k : kill) categoryCache.remove(k);
+    }
+
+    /**
+     * Loads and parses the server's XMLTV feed (Servers -> edit -> "EPG URL").
+     * Cached per server for the life of the app -- guides are large and don't
+     * change minute to minute. Reports an error (not a crash) if no EPG URL is
+     * configured or the feed can't be read; callers fall back to the honest
+     * "no guide data yet" placeholder in that case.
+     */
+    public void loadEpg(final ServerProfile server, final Callback<EpgLoader> cb) {
+        if (server == null || server.epgUrl == null || server.epgUrl.trim().isEmpty()) {
+            postError(cb, "No EPG URL configured for this server.");
+            return;
+        }
+        EpgLoader cached = epgCache.get(server.id);
+        if (cached != null) {
+            cb.onResult(cached);
+            return;
+        }
+        final String url = server.epgUrl.trim();
+        final String ua = server.userAgent;
+        io.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    EpgLoader loader = EpgLoader.fetch(url, ua);
+                    epgCache.put(server.id, loader);
+                    post(cb, loader);
+                } catch (final Exception e) {
+                    postError(cb, friendly(e));
+                }
+            }
+        });
     }
 
     // ------------------------------------------------------------------

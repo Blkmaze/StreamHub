@@ -13,8 +13,12 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.wm.streamhub.R;
 import com.wm.streamhub.data.ContentRepository;
+import com.wm.streamhub.data.XtreamClient;
 import com.wm.streamhub.model.ServerProfile;
 import com.wm.streamhub.util.Prefs;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Add or edit one line. Deliberately short: typing on a remote is painful. */
 public class AddServerActivity extends AppCompatActivity {
@@ -23,6 +27,10 @@ public class AddServerActivity extends AppCompatActivity {
     /** When true, the host field is shown but locked — the DNS was baked in at
      *  build time and the customer only needs to type username/password. */
     public static final String EXTRA_LOCK_HOST = "lockHost";
+    /** When true, there's no single provider picked yet — this screen just asks
+     *  for username/password and tries them against every preloaded provider,
+     *  landing on whichever one accepts them. No host field shown at all. */
+    public static final String EXTRA_AUTODETECT = "autoDetect";
 
     private Prefs prefs;
     private ContentRepository repo;
@@ -30,10 +38,12 @@ public class AddServerActivity extends AppCompatActivity {
 
     private EditText inName, inHost, inUser, inPass, inM3u, inEpg;
     private LinearLayout groupXtream, groupM3u, typeRow;
-    private TextView formTitle, formSub, formStatus;
-    private Button typeXtream, typeM3u;
+    private TextView formTitle, formSub, formStatus, lblHost;
+    private Button typeXtream, typeM3u, btnSave, btnTest, btnDelete;
     private boolean isXtream = true;
     private boolean lockHost = false;
+    private boolean autoDetect = false;
+    private volatile boolean detecting = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -46,6 +56,7 @@ public class AddServerActivity extends AppCompatActivity {
         formTitle = findViewById(R.id.formTitle);
         formSub = findViewById(R.id.formSub);
         formStatus = findViewById(R.id.formStatus);
+        lblHost = findViewById(R.id.lblHost);
         inName = findViewById(R.id.inName);
         inHost = findViewById(R.id.inHost);
         inUser = findViewById(R.id.inUser);
@@ -57,9 +68,13 @@ public class AddServerActivity extends AppCompatActivity {
         typeRow = findViewById(R.id.typeRow);
         typeXtream = findViewById(R.id.typeXtream);
         typeM3u = findViewById(R.id.typeM3u);
+        btnSave = findViewById(R.id.btnSave);
+        btnTest = findViewById(R.id.btnTest);
+        btnDelete = findViewById(R.id.btnDelete);
 
         String id = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_ID);
         lockHost = getIntent() != null && getIntent().getBooleanExtra(EXTRA_LOCK_HOST, false);
+        autoDetect = getIntent() != null && getIntent().getBooleanExtra(EXTRA_AUTODETECT, false);
         if (id != null) editing = prefs.getServer(id);
         if (editing == null) {
             editing = new ServerProfile();
@@ -88,6 +103,23 @@ public class AddServerActivity extends AppCompatActivity {
             inUser.requestFocus();
         }
 
+        if (autoDetect) {
+            // No single provider chosen yet — hide everything that implies one
+            // (host field, type toggle, test/delete) and just ask for the two
+            // fields that matter. Save now means "find my provider".
+            isXtream = true;
+            applyType();
+            typeRow.setVisibility(View.GONE);
+            lblHost.setVisibility(View.GONE);
+            inHost.setVisibility(View.GONE);
+            btnTest.setVisibility(View.GONE);
+            btnDelete.setVisibility(View.GONE);
+            formTitle.setText(R.string.auto_signin_title);
+            formSub.setVisibility(View.VISIBLE);
+            formSub.setText(R.string.auto_signin_sub_form);
+            inUser.requestFocus();
+        }
+
         typeXtream.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -103,9 +135,13 @@ public class AddServerActivity extends AppCompatActivity {
             }
         });
 
-        findViewById(R.id.btnSave).setOnClickListener(new View.OnClickListener() {
+        btnSave.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (autoDetect) {
+                    runAutoDetect();
+                    return;
+                }
                 if (collect()) {
                     prefs.upsertServer(editing);
                     prefs.setActiveServerId(editing.id);
@@ -116,7 +152,7 @@ public class AddServerActivity extends AppCompatActivity {
             }
         });
 
-        findViewById(R.id.btnTest).setOnClickListener(new View.OnClickListener() {
+        btnTest.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!collect()) return;
@@ -138,7 +174,7 @@ public class AddServerActivity extends AppCompatActivity {
             }
         });
 
-        findViewById(R.id.btnDelete).setOnClickListener(new View.OnClickListener() {
+        btnDelete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 prefs.deleteServer(editing.id);
@@ -147,6 +183,87 @@ public class AddServerActivity extends AppCompatActivity {
                 finish();
             }
         });
+    }
+
+    /**
+     * Tries the entered username/password against every preloaded provider,
+     * one at a time on a background thread, and stops at the first one that
+     * accepts them. Deliberately sequential (not parallel) — these are login
+     * attempts against real customer panels, and hammering all 8 at once looks
+     * like credential stuffing to a panel's own abuse detection.
+     */
+    private void runAutoDetect() {
+        if (detecting) return;
+        final String user = inUser.getText().toString().trim();
+        final String pass = inPass.getText().toString().trim();
+        if (user.isEmpty() || pass.isEmpty()) {
+            formStatus.setTextColor(getResources().getColor(R.color.bad));
+            formStatus.setText("Enter your username and password.");
+            return;
+        }
+        detecting = true;
+        btnSave.setEnabled(false);
+        formStatus.setTextColor(getResources().getColor(R.color.text_secondary));
+        formStatus.setText(getString(R.string.auto_signin_checking));
+
+        final List<ServerProfile> candidates = new ArrayList<>(prefs.getServers());
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                ServerProfile matchTemplate = null;
+                for (int i = 0; i < candidates.size(); i++) {
+                    final ServerProfile preset = candidates.get(i);
+                    if (!preset.isXtream() || preset.host == null || preset.host.isEmpty()) continue;
+
+                    final int attempt = i + 1;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            formStatus.setText(getString(R.string.auto_signin_checking)
+                                    + " (" + attempt + "/" + candidates.size() + ")");
+                        }
+                    });
+
+                    ServerProfile candidate = new ServerProfile();
+                    candidate.type = ServerProfile.TYPE_XTREAM;
+                    candidate.host = preset.host;
+                    candidate.username = user;
+                    candidate.password = pass;
+                    candidate.userAgent = preset.userAgent;
+                    try {
+                        XtreamClient.AccountInfo info = new XtreamClient(candidate).authenticate();
+                        if (info.authorized) {
+                            matchTemplate = preset;
+                            break;
+                        }
+                    } catch (Exception ignored) {
+                        // Unreachable/timed out — just move on to the next provider.
+                    }
+                }
+
+                final ServerProfile matched = matchTemplate;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        detecting = false;
+                        btnSave.setEnabled(true);
+                        if (matched == null) {
+                            formStatus.setTextColor(getResources().getColor(R.color.bad));
+                            formStatus.setText(R.string.auto_signin_fail);
+                            return;
+                        }
+                        matched.username = user;
+                        matched.password = pass;
+                        prefs.upsertServer(matched);
+                        prefs.setActiveServerId(matched.id);
+                        repo.clearServer(matched.id);
+                        Toast.makeText(AddServerActivity.this,
+                                "Signed in — " + matched.label(), Toast.LENGTH_SHORT).show();
+                        finish();
+                    }
+                });
+            }
+        }).start();
     }
 
     private void applyType() {

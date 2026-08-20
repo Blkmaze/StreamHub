@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Diagonal two-tone accent badge, used behind the brand mark / logo dot —
+     the one deliberately angular, "broadcast graphics" touch on an otherwise
+     low-risk reskin of the existing (working, remote-tested) layout. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="45" android:startColor="@color/accent" android:endColor="@color/accent2" />
+    <corners android:radius="10dp" />
+</shape>

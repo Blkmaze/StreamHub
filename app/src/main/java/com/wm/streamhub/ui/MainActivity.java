@@ -57,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView sectionTitle, netStatus, clock, emptyState, noticeBar,
             hdrChannels, hdrCategories;
     private ProgressBar progress;
+    private TextView heroLogo, heroTitle, heroSub, heroTag;
 
     private final List<ServerProfile> servers = new ArrayList<>();
     private final List<StreamItem> currentItems = new ArrayList<>();
@@ -93,6 +94,10 @@ public class MainActivity extends AppCompatActivity {
         progress = findViewById(R.id.progress);
         hdrChannels = findViewById(R.id.hdrChannels);
         hdrCategories = findViewById(R.id.hdrCategories);
+        heroLogo = findViewById(R.id.heroLogo);
+        heroTitle = findViewById(R.id.heroTitle);
+        heroSub = findViewById(R.id.heroSub);
+        heroTag = findViewById(R.id.heroTag);
 
         rvServers = findViewById(R.id.listServers);
         rvCategories = findViewById(R.id.listCategories);
@@ -131,6 +136,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void buildNavRail() {
         navRail.removeAllViews();
+        // NOTE: these first four nav items must stay at indices 0-3, in this exact
+        // order, matching SECTION_LIVE/MOVIES/SERIES/FAVORITES — markNav() activates
+        // navRail.getChildAt(section), so anything inserted between them would throw
+        // that alignment off and highlight the wrong icon.
         addNavItem("▶", getString(R.string.tab_live), new Runnable() {
             @Override
             public void run() {
@@ -153,6 +162,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 switchSection(SECTION_FAVORITES);
+            }
+        });
+        addNavItem("▤", getString(R.string.tab_guide), new Runnable() {
+            @Override
+            public void run() {
+                startActivity(new Intent(MainActivity.this, com.wm.streamhub.ui.GuideActivity.class));
             }
         });
         addNavItem("✎", getString(R.string.tab_servers), new Runnable() {
@@ -228,9 +243,47 @@ public class MainActivity extends AppCompatActivity {
     // ------------------------------------------------------------------
 
     private void wireLists() {
+        adServers.setOnFocus(new RowAdapter.OnFocus() {
+            @Override
+            public void onFocus(int position, RowAdapter.Row row) {
+                if (row.tag instanceof ServerProfile) {
+                    ServerProfile s = (ServerProfile) row.tag;
+                    updateHero(s.label(), s.subtitle(), "SERVER", s.enabled ? null : "OFF");
+                } else {
+                    updateHero(getString(R.string.add_server), "Set up a new IPTV source", null, null);
+                }
+            }
+        });
+
+        adCategories.setOnFocus(new RowAdapter.OnFocus() {
+            @Override
+            public void onFocus(int position, RowAdapter.Row row) {
+                Category c = row.tag instanceof Category ? (Category) row.tag : null;
+                String name = c == null ? "All categories" : c.name;
+                String count = c == null ? "" : c.count + " channels";
+                updateHero(name, count, "CATEGORY", null);
+            }
+        });
+
+        adChannels.setOnFocus(new RowAdapter.OnFocus() {
+            @Override
+            public void onFocus(int position, RowAdapter.Row row) {
+                if (!(row.tag instanceof StreamItem)) return;
+                StreamItem item = (StreamItem) row.tag;
+                updateHero(item.name, item.subtitle(),
+                        item.kind == StreamItem.KIND_LIVE ? "LIVE NOW" : null, null);
+            }
+        });
+
         adServers.setOnClick(new RowAdapter.OnClick() {
             @Override
             public void onClick(int position, RowAdapter.Row row) {
+                if ("autodetect".equals(row.tag)) {
+                    Intent i = new Intent(MainActivity.this, AddServerActivity.class);
+                    i.putExtra(AddServerActivity.EXTRA_AUTODETECT, true);
+                    startActivity(i);
+                    return;
+                }
                 if (row.tag instanceof ServerProfile) {
                     adServers.setActivated(position);
                     ServerProfile picked = (ServerProfile) row.tag;
@@ -310,7 +363,23 @@ public class MainActivity extends AppCompatActivity {
         servers.clear();
         servers.addAll(prefs.getServers());
 
+        String activeId = prefs.getActiveServerId();
+        boolean hasActive = false;
+        for (ServerProfile s : servers) {
+            if (s.id.equals(activeId)) { hasActive = true; break; }
+        }
+        // Nothing chosen yet and there's a real choice to make: lead with an
+        // auto sign-in option (tries the customer's username/password against
+        // every preloaded provider) instead of making them guess which of the
+        // 8 baked-in DNS entries is theirs. The individual provider rows stay
+        // right below it as a manual fallback if auto sign-in can't find a match.
+        boolean offerAutoDetect = !hasActive && servers.size() > 1;
+
         List<RowAdapter.Row> rows = new ArrayList<>();
+        if (offerAutoDetect) {
+            rows.add(new RowAdapter.Row("⚡  " + getString(R.string.auto_signin),
+                    getString(R.string.auto_signin_sub)).tag("autodetect"));
+        }
         for (ServerProfile s : servers) {
             RowAdapter.Row r = new RowAdapter.Row(s.label(), s.subtitle()).tag(s);
             if (!s.enabled) r.badge("off");
@@ -329,16 +398,32 @@ public class MainActivity extends AppCompatActivity {
         }
 
         ServerProfile chosen = null;
-        String activeId = prefs.getActiveServerId();
         for (int i = 0; i < servers.size(); i++) {
             if (servers.get(i).id.equals(activeId)) {
                 chosen = servers.get(i);
-                adServers.setActivated(i);
+                adServers.setActivated(i + (offerAutoDetect ? 1 : 0));
             }
         }
         if (chosen == null) {
-            chosen = servers.get(0);
-            adServers.setActivated(0);
+            if (servers.size() == 1) {
+                // Only one provider baked in (legacy single-DNS build) —
+                // nothing to actually choose, so just go straight to it.
+                chosen = servers.get(0);
+                adServers.setActivated(0);
+            } else {
+                // Multiple providers preloaded and the customer hasn't picked
+                // one yet: show the Servers column (auto sign-in row on top,
+                // each provider tappable manually below it) and let them act
+                // instead of guessing (previously this silently jumped into
+                // servers.get(0) — always "Prada" — before the customer ever
+                // saw the list).
+                adCategories.submit(new ArrayList<RowAdapter.Row>());
+                adChannels.submit(new ArrayList<RowAdapter.Row>());
+                showEmpty(getString(R.string.pick_provider));
+                RowAdapter.focusPosition(rvServers, 0);
+                markNav();
+                return;
+            }
         }
         markNav();
 
@@ -475,6 +560,30 @@ public class MainActivity extends AppCompatActivity {
     // ------------------------------------------------------------------
     // Chrome
     // ------------------------------------------------------------------
+
+    /**
+     * Netflix-style dynamic hero: whatever row currently has D-pad focus is what's
+     * shown up top. badge is an optional small accent pill (e.g. "LIVE NOW"); off is
+     * an optional secondary note shown in place of the badge when the row is disabled.
+     */
+    private void updateHero(String title, String sub, String badge, String off) {
+        heroTitle.setText(title == null || title.isEmpty()
+                ? getString(R.string.hero_default_title) : title);
+        heroSub.setText(sub == null ? "" : sub);
+        heroLogo.setText(title != null && !title.isEmpty()
+                ? title.substring(0, 1).toUpperCase(Locale.US) : "•");
+        if (off != null) {
+            heroTag.setVisibility(View.VISIBLE);
+            heroTag.setText(off);
+            heroTag.setTextColor(getResources().getColor(R.color.bad));
+        } else if (badge != null) {
+            heroTag.setVisibility(View.VISIBLE);
+            heroTag.setText(badge);
+            heroTag.setTextColor(getResources().getColor(R.color.accent));
+        } else {
+            heroTag.setVisibility(View.GONE);
+        }
+    }
 
     private void updateStatusBar() {
         int tier = monitor.tier();
